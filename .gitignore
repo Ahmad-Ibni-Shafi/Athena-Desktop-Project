@@ -1,0 +1,15 @@
+# Dependencies are restored from package.json and package-lock.json.
+node_modules/
+
+# Generated Vite and Electron output.
+dist/
+out/
+
+# Local captures created by the Electron app.
+app/user-camera-snap/
+app/user-screen-snap/
+
+# OS and editor files.
+.DS_Store
+DS_Store
+.vscode/
