@@ -8,8 +8,10 @@ import './App.css'
 function App() {
   // state variables
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [microphoneEnabled, setMicrophoneEnabled] = useState(false);
   const [screenShareEnabled, setScreenShareEnabled] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
+  const [networkConnected, setNetworkConnected] = useState(navigator.onLine);
   const [timer, setTimer] = useState(0);
   const [examStarted, setExamStarted] = useState(false);
 
@@ -18,7 +20,7 @@ function App() {
   const cameraVideoRef = useRef(null);
   const screenVideoRef = useRef(null);
 
-  const allChecksReady = cameraEnabled && screenShareEnabled && fullScreen;
+  const allChecksReady = cameraEnabled && microphoneEnabled && screenShareEnabled && fullScreen && networkConnected;
 
   useEffect(() => {
     // Register Listener for handling Timer Tick from Main
@@ -30,6 +32,21 @@ function App() {
     return () => {
       removeTimerTickListener()
       removeCameraSnapListener()
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateFullScreen = () => setFullScreen(Boolean(document.fullscreenElement));
+    const updateNetworkStatus = () => setNetworkConnected(navigator.onLine);
+
+    document.addEventListener('fullscreenchange', updateFullScreen);
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', updateFullScreen);
+      window.removeEventListener('online', updateNetworkStatus);
+      window.removeEventListener('offline', updateNetworkStatus);
     };
   }, []);
 
@@ -59,13 +76,28 @@ function App() {
   async function getCameraAccess() {
     try {
       const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      console.log(cameraStream);
       if (cameraVideoRef.current) {
         cameraVideoRef.current.srcObject = cameraStream;
       }
+      cameraStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        setCameraEnabled(false);
+        if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+      }, { once: true });
       setCameraEnabled(true);
-    } catch (error) {
+    } catch {
+      setCameraEnabled(false);
       alert('Cannot access camera. Please allow camera permissions and try again.');
+    }
+  }
+
+  async function checkMicrophoneAccess() {
+    try {
+      const microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      microphoneStream.getTracks().forEach((track) => track.stop());
+      setMicrophoneEnabled(true);
+    } catch {
+      setMicrophoneEnabled(false);
+      alert('Cannot access a microphone. Please allow microphone permissions and try again.');
     }
   }
 
@@ -78,8 +110,13 @@ function App() {
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = screenStream;
       }
+      screenStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        setScreenShareEnabled(false);
+        if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
+      }, { once: true });
       setScreenShareEnabled(true);
-    } catch (error) {
+    } catch {
+      setScreenShareEnabled(false);
       alert('Cannot access screen share. Please allow screen sharing and try again.');
     }
   }
@@ -88,7 +125,7 @@ function App() {
     try {
       await document.documentElement.requestFullscreen();
       setFullScreen(true);
-    } catch (error) {
+    } catch {
       alert('Cannot switch to full screen.');
     }
   }
@@ -98,7 +135,8 @@ function App() {
       await window.athena.startTimerOnMain();
       setExamStarted(true);
     } catch (error) {
-      // ignored — main already logs failures on its side
+      console.error('Failed to start the exam timer:', error);
+      alert('The exam could not be started. Please try again.');
     }
   }
 
@@ -154,6 +192,35 @@ function App() {
 
         <div className="divider" />
 
+        {/* Microphone permission check only; this app does not capture audio. */}
+        <div className="check-row">
+          <div className="check-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
+            </svg>
+          </div>
+
+          <div className="check-body">
+            <h3>Microphone</h3>
+            <p>Checks microphone permission only. Audio is not recorded.</p>
+
+            <div className="check-action">
+              {microphoneEnabled ? (
+                <span className="check-status is-ready">
+                  <CheckmarkIcon /> Microphone permission checked
+                </span>
+              ) : (
+                <button className="btn btn-primary" onClick={checkMicrophoneAccess}>
+                  Check microphone
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="divider" />
+
         {/* Check 2: Screen Share */}
         <div className="check-row">
           <div className="check-icon">
@@ -185,6 +252,34 @@ function App() {
                 muted
                 className={`preview ${screenShareEnabled ? '' : 'is-hidden'}`}
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="divider" />
+
+        {/* Network status */}
+        <div className="check-row">
+          <div className="check-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 9.5a11 11 0 0 1 14 0M8 13a6.5 6.5 0 0 1 8 0m-5 3.5a2 2 0 0 1 2 0M12 20h.01" />
+            </svg>
+          </div>
+
+          <div className="check-body">
+            <h3>Network connection</h3>
+            <p>Shows whether your device reports a network connection; it does not guarantee internet access.</p>
+
+            <div className="check-action" aria-live="polite">
+              {networkConnected ? (
+                <span className="check-status is-ready">
+                  <CheckmarkIcon /> Network connected
+                </span>
+              ) : (
+                <span className="check-status is-warning">
+                  Network unavailable — reconnect to continue
+                </span>
+              )}
             </div>
           </div>
         </div>

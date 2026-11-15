@@ -132,6 +132,11 @@ body {
   border-radius: 8px;
 }
 
+.check-status.is-warning {
+  color: #b42318;
+  background: #fef3f2;
+}
+
 .check-status svg {
   width: 15px;
   height: 15px;
